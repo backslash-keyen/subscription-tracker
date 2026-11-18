@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Subscriptions</title>
+  <meta name="description" content="Offline subscription tracker with renewal reminders.">
+  <meta name="theme-color" content="#4f46e5">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>Subscriptions</h1>
+    <div class="actions">
+      <button id="syncBtn" class="ghost" hidden title="Sync with Google Drive">Sync</button>
+      <button id="installBtn" class="ghost" hidden>Install</button>
+      <button id="settingsBtn" class="ghost" aria-label="Settings" title="Settings">⚙</button>
+      <button id="addBtn" class="primary">+ Add</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="status" class="status" role="status" hidden></div>
+    <section id="reminders" class="reminders" hidden aria-label="Upcoming renewals"></section>
+
+    <div class="filters" role="tablist" aria-label="Filter">
+      <button data-filter="all" class="chip on">All</button>
+      <button data-filter="active" class="chip">Active</button>
+      <button data-filter="needs-details" class="chip">Needs details</button>
+      <button data-filter="inactive" class="chip">Paused / cancelled</button>
+    </div>
+
+    <section id="cards" class="cards" aria-label="Subscriptions"></section>
+
+    <div id="empty" class="empty" hidden>
+      <p>No subscriptions yet.</p>
+      <p><button class="primary" data-action="add">Add one</button> or <button class="ghost" data-action="import">Import a backup file</button></p>
+    </div>
+
+    <section class="totals" aria-label="Totals">
+      <div class="total"><span class="label">Monthly</span><span id="tMonthly" class="value">–</span><span id="tMonthlyNote" class="note"></span></div>
+      <div class="total"><span class="label">Yearly</span><span id="tYearly" class="value">–</span><span id="tYearlyNote" class="note"></span></div>
+      <div class="total"><span class="label">Next renewal</span><span id="tNext" class="value">–</span><span id="tNextNote" class="note"></span></div>
+    </section>
+  </main>
+
+  <!-- Add / edit -->
+  <dialog id="editDlg">
+    <form id="editForm" method="dialog">
+      <h2 id="editTitle">Add subscription</h2>
+      <div class="grid">
+        <label class="span2">Service <input name="service" required maxlength="80" placeholder="e.g. Netflix"></label>
+        <label>Plan <input name="plan" maxlength="80" placeholder="e.g. Premium"></label>
+        <label>Status
+          <select name="status">
+            <option value="active">Active</option>
+            <option value="trial">Trial</option>
+            <option value="needs-details">Needs details</option>
+            <option value="paused">Paused</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </label>
+        <label>Price <input name="price" type="number" inputmode="decimal" min="0" step="0.01" placeholder="Unknown"></label>
+        <label>Currency
+          <select name="currency">
+            <option>INR</option><option>USD</option><option>EUR</option><option>GBP</option><option>AED</option><option>SGD</option>
+          </select>
+        </label>
+        <label>Billing cycle
+          <select name="cycle">
+            <option value="monthly">Monthly</option>
+            <option value="yearly">Yearly</option>
+            <option value="quarterly">Quarterly</option>
+            <option value="half-yearly">Every 6 months</option>
+            <option value="weekly">Weekly</option>
+          </select>
+        </label>
+        <label>Next billing date <input name="renewal" type="date"></label>
+        <label>Remind me <select name="remindDays">
+          <option value="">Default</option><option value="0">On the day</option><option value="1">1 day before</option>
+          <option value="3">3 days before</option><option value="7">1 week before</option><option value="14">2 weeks before</option>
+        </select></label>
+        <label>Category <input name="category" maxlength="40" list="categories" placeholder="e.g. AI, Video"></label>
+        <label class="span2">Account email <input name="email" type="email" maxlength="120" autocomplete="off"></label>
+        <label class="span2">Payment method label
+          <input name="payment" maxlength="60" autocomplete="off" placeholder="e.g. HDFC Visa ending 4321">
+          <small>Only a label. Never enter a full card number, CVV or expiry.</small>
+        </label>
+        <label class="span2">Manage link <input name="link" type="url" maxlength="300" placeholder="https://"></label>
+        <label class="span2">Notes <textarea name="notes" rows="2" maxlength="500"></textarea></label>
+      </div>
+      <p id="formError" class="error" hidden></p>
+      <div class="dlg-actions">
+        <button type="button" id="deleteBtn" class="danger" hidden>Delete</button>
+        <span class="spacer"></span>
+        <button type="button" class="ghost" data-close>Cancel</button>
+        <button type="submit" class="primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+  <datalist id="categories"><option>AI</option><option>Video</option><option>Music</option><option>Cloud storage</option><option>Productivity</option><option>News</option><option>Utilities</option></datalist>
+
+  <!-- Settings -->
+  <dialog id="settingsDlg">
+    <form id="settingsForm" method="dialog">
+      <h2>Settings</h2>
+
+      <h3>Reminders</h3>
+      <label>Default reminder
+        <select name="remindDays">
+          <option value="0">On the day</option><option value="1">1 day before</option><option value="3">3 days before</option>
+          <option value="7">1 week before</option><option value="14">2 weeks before</option>
+        </select>
+      </label>
+      <p class="hint">Upcoming renewals always show at the top of the app. For alerts when the app is closed:</p>
+      <div class="row">
+        <button type="button" id="notifyBtn" class="ghost">Turn on notifications</button>
+        <button type="button" id="icsBtn" class="ghost">Add renewals to my calendar (.ics)</button>
+      </div>
+      <p class="hint">The calendar file is the most reliable option: import it once into Google Calendar and every renewal gets a repeating event with an alert, on all your devices. Re-export after you change a date.</p>
+
+      <h3>Totals</h3>
+      <label>Main currency
+        <select name="currency"><option>INR</option><option>USD</option><option>EUR</option><option>GBP</option><option>AED</option><option>SGD</option></select>
+      </label>
+
+      <h3>Google Drive sync <span class="optional">optional</span></h3>
+      <p class="hint">Keeps your PC and phone in step through a private file in your own Google Drive. Without it, each device keeps its own copy and everything works offline.</p>
+      <label>Google OAuth client ID
+        <input name="clientId" autocomplete="off" spellcheck="false" placeholder="xxxx.apps.googleusercontent.com">
+      </label>
+      <div class="row">
+        <button type="button" id="driveConnectBtn" class="ghost">Connect Google Drive</button>
+        <button type="button" id="driveDisconnectBtn" class="ghost" hidden>Disconnect</button>
+      </div>
+      <p id="driveState" class="hint"></p>
+
+      <h3>Backup</h3>
+      <div class="row">
+        <button type="button" id="exportBtn" class="ghost">Export backup</button>
+        <button type="button" id="importBtn" class="ghost">Import backup</button>
+        <input type="file" id="importFile" accept="application/json,.json" hidden>
+      </div>
+
+      <p class="hint version">Data is stored only on this device<span id="persistNote"></span>. <span id="appVersion"></span></p>
+      <div class="dlg-actions">
+        <span class="spacer"></span>
+        <button type="button" class="ghost" data-close>Cancel</button>
+        <button type="submit" class="primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="db.js"></script>
+  <script src="sync.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
